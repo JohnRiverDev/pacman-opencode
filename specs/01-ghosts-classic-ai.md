@@ -1,6 +1,6 @@
 # SPEC 01 — Los cuatro fantasmas clásicos con IA propia
 
-> **Status:** Approved
+> **Status:** Draft
 > **Depends on:** —
 > **Date:** 2026-09-24
 > **Objective:** Dar a los 4 fantasmas (Blinky, Pinky, Inky y Clyde) IA de persecución propia con ciclos scatter/chase y salida escalonada de la pen.
