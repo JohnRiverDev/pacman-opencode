@@ -1,6 +1,6 @@
 # SPEC 02 — Power pellets (objetos que permiten comer fantasmas)
 
-> **Status:** Draft
+> **Status:** Approved
 > **Depends on:** SPEC 01
 > **Date:** 2026-09-24
 > **Objective:** Agregar power pellets en las esquinas del laberinto que, al ser comidos, activan un modo asustado temporal donde los fantasmas se vuelven vulnerables y pueden ser capturados por Pac-Man.
