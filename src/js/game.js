@@ -74,8 +74,14 @@ function createGame() {
       state: 'waiting',          // 'waiting' | 'active'
       waitUntil: 0,              // frame absoluto de liberacion
       inPen: true,               // forzado a salir recto hacia arriba
+      frightened: false,         // Indica si el fantasma está vulnerable
     } ) ),
     frame: 0,
+    
+    // Nuevas propiedades para power pellets
+    frightened: false,          // Indica si estamos en modo asustado
+    frightenedTimer: 0,         // Timer para el modo asustado (en frames)
+    powerPelletsEaten: 0,       // Cantidad de power pellets comidos
   };
 }
 
@@ -127,8 +133,20 @@ function movePacman( game ) {
       p.dir = p.nextDir;
       p.nextDir = null;
     }
-    // Comer dot.
+    // Comer dot o power pellet.
     if ( grid[ p.y ][ p.x ] === 2 ) {
+      // Verificar si es un power pellet o una dot
+      const isPowerPellet = POWER_PELLET_POSITIONS.some(
+        pos => pos.x === p.x && pos.y === p.y
+      );
+      
+      if ( isPowerPellet ) {
+        // Activar modo asustado
+        game.frightened = true;
+        game.frightenedTimer = 600; // 10 segundos a 60fps
+        game.powerPelletsEaten++;
+      }
+      
       grid[ p.y ][ p.x ] = 0;
       game.score += 10;
       game.dotsRemaining--;
@@ -146,6 +164,21 @@ function movePacman( game ) {
 function decideGhost( game, g ) {
   const grid = game.grid;
   const p = game.pacman;
+
+  // Si el fantasma está en modo asustado, mover aleatoriamente
+  if ( game.frightened || g.frightened ) {
+    const options = Object.keys( DIRS ).filter(
+      ( dir ) => dir !== OPPOSITE[ g.dir ] && canMove( grid, g.x, g.y, dir, 'ghost' )
+    );
+    // Sin salida (callejon): permitir el giro de 180.
+    const choices = options.length ? options : [ '' + OPPOSITE[ g.dir ] ];
+    
+    // Elegir dirección aleatoria durante modo asustado
+    if ( choices.length ) {
+      g.dir = choices[ Math.floor( Math.random() * choices.length ) ];
+    }
+    return;
+  }
 
   // Obtener blanco según personalidad y modo
   let target = null;
@@ -263,6 +296,7 @@ function resetPositions( game ) {
     g.state = 'waiting';
     g.inPen = true;
     g.waitUntil = game.frame + RELEASE_DELAYS[ g.kind ];
+    g.frightened = false;  // Desactivar modo asustado
   } );
 }
 
@@ -272,6 +306,19 @@ function collides( a, b ) {
 
 function update( game ) {
   game.frame++;
+  
+  // Decrementar el timer del modo asustado si está activo
+  if ( game.frightenedTimer > 0 ) {
+    game.frightenedTimer--;
+    if ( game.frightenedTimer === 0 ) {
+      game.frightened = false;
+      // Desactivar el modo asustado para todos los fantasmas
+      game.ghosts.forEach( ( g ) => {
+        g.frightened = false;
+      } );
+    }
+  }
+  
   movePacman( game );
   game.ghosts.forEach( ( g ) => {
     // Solo mueve si no está esperando
@@ -287,12 +334,29 @@ function update( game ) {
 
   for ( const g of game.ghosts ) {
     if ( collides( game.pacman, g ) ) {
-      game.lives--;
-      if ( game.lives <= 0 ) {
-        game.state = 'lost';
-        return;
+      // Si estamos en modo asustado y el fantasma es vulnerable
+      if ( game.frightened || g.frightened ) {
+        // Incrementar la puntuación por captura de fantasma
+        // La puntuación se duplica por cada fantasma capturado (100, 200, 400, 800)
+        const scoreMultiplier = Math.pow( 2, game.ghosts.filter( ghost => ghost.frightened ).length - 1 );
+        game.score += 100 * scoreMultiplier;
+        
+        // Reiniciar posición del fantasma a la jaula
+        g.x = GHOST_STARTS[0].x;  // All ghosts return to same start position (blue pen)
+        g.y = GHOST_STARTS[0].y;
+        g.state = 'waiting';
+        g.inPen = true;
+        g.waitUntil = game.frame + RELEASE_DELAYS[ g.kind ];
+        g.frightened = false;  // Desactivar modo asustado para este fantasma
+        
+      } else {
+        game.lives--;
+        if ( game.lives <= 0 ) {
+          game.state = 'lost';
+          return;
+        }
+        resetPositions( game );
       }
-      resetPositions( game );
       break;
     }
   }

@@ -71,9 +71,21 @@ function drawDots( ctx, grid ) {
   for ( let y = 0; y < grid.length; y++ ) {
     for ( let x = 0; x < grid[ 0 ].length; x++ ) {
       if ( grid[ y ][ x ] !== 2 ) continue;
+      
+      // Check if this position is a power pellet
+      const isPowerPellet = POWER_PELLET_POSITIONS.some( pos => 
+        pos.x === x && pos.y === y 
+      );
+      
       const { cx, cy } = cellCenter( x, y );
       ctx.beginPath();
-      ctx.arc( cx, cy, 2.5, 0, Math.PI * 2 );
+      if (isPowerPellet) {
+        // Dibujar power pellet más grande
+        ctx.arc( cx, cy, 6, 0, Math.PI * 2 );
+      } else {
+        // Dibujar dot normal
+        ctx.arc( cx, cy, 2.5, 0, Math.PI * 2 );
+      }
       ctx.fill();
     }
   }
@@ -151,6 +163,9 @@ const GHOST_COLORS = {
   clyde: '#ffb852'
 };
 
+// Color de fantasmas durante el modo asustado
+const FRIGHTENED_COLOR = '#0000ff';
+
 function draw( ctx, game, frame ) {
   const grid = game.grid;
   const W = grid[ 0 ].length;
@@ -163,7 +178,14 @@ function draw( ctx, game, frame ) {
   drawDoor( ctx, grid );
   drawDots( ctx, grid );
   drawPacman( ctx, game.pacman, frame );
-  game.ghosts.forEach( ( g ) => drawGhost( ctx, g, GHOST_COLORS[ g.kind ] || '#ff0000' ) );
+  game.ghosts.forEach( ( g ) => {
+    // Determinar el color del fantasma según su estado
+    let color = GHOST_COLORS[ g.kind ] || '#ff0000';
+    if ( game.frightened || g.frightened ) {
+      color = FRIGHTENED_COLOR;
+    }
+    drawGhost( ctx, g, color );
+  } );
   drawHUD( ctx, game, W );
 }
 
