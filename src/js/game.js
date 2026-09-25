@@ -269,10 +269,6 @@ function moveGhost( game, g ) {
         g.inPen = false;
       }
     } else {
-      // Si el fantasma está en modo asustado, activar el modo asustado
-      if ( game.frightened || g.frightened ) {
-        g.frightened = true;
-      }
       decideGhost( game, g );
     }
     
@@ -341,13 +337,13 @@ function update( game ) {
       // Si estamos en modo asustado y el fantasma es vulnerable
       if ( game.frightened || g.frightened ) {
         // Incrementar la puntuación por captura de fantasma
-        // La puntuación se duplica por cada fantasma capturado
+        // La puntuación se duplica por cada fantasma capturado (100, 200, 400, 800)
         const scoreMultiplier = Math.pow( 2, game.ghosts.filter( ghost => ghost.frightened ).length - 1 );
         game.score += 100 * scoreMultiplier;
         
-        // Reiniciar posición del fantasma
-        g.x = g.x;
-        g.y = g.y;
+        // Reiniciar posición del fantasma a la jaula
+        g.x = GHOST_STARTS[0].x;  // All ghosts return to same start position (blue pen)
+        g.y = GHOST_STARTS[0].y;
         g.state = 'waiting';
         g.inPen = true;
         g.waitUntil = game.frame + RELEASE_DELAYS[ g.kind ];

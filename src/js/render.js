@@ -71,9 +71,21 @@ function drawDots( ctx, grid ) {
   for ( let y = 0; y < grid.length; y++ ) {
     for ( let x = 0; x < grid[ 0 ].length; x++ ) {
       if ( grid[ y ][ x ] !== 2 ) continue;
+      
+      // Check if this position is a power pellet
+      const isPowerPellet = POWER_PELLET_POSITIONS.some( pos => 
+        pos.x === x && pos.y === y 
+      );
+      
       const { cx, cy } = cellCenter( x, y );
       ctx.beginPath();
-      ctx.arc( cx, cy, 2.5, 0, Math.PI * 2 );
+      if (isPowerPellet) {
+        // Dibujar power pellet más grande
+        ctx.arc( cx, cy, 6, 0, Math.PI * 2 );
+      } else {
+        // Dibujar dot normal
+        ctx.arc( cx, cy, 2.5, 0, Math.PI * 2 );
+      }
       ctx.fill();
     }
   }
