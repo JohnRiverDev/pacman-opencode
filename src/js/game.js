@@ -13,6 +13,35 @@ const OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' };
 const PACMAN_SPEED = 0.125; // 1/8 celda/frame -> alinea cada 8 frames
 const GHOST_SPEED = 0.1;    // 1/10 celda/frame
 
+// Constantes para el comportamiento de los fantasmas
+const RELEASE_DELAYS = { blinky: 0, pinky: 120, inky: 360, clyde: 720 }; // frames @60fps
+const SCATTER_TARGETS = {
+  blinky: { x: 26, y: 1 },
+  pinky:  { x: 1,  y: 1 },
+  inky:   { x: 26, y: 29 },
+  clyde:  { x: 1,  y: 29 },
+};
+const PHASES = [
+  { mode: 'scatter', frames: 420 }, // 7s
+  { mode: 'chase',   frames: 1200 }, // 20s
+  { mode: 'scatter', frames: 420 },
+  { mode: 'chase',   frames: 1200 },
+  { mode: 'scatter', frames: 300 }, // 5s
+  { mode: 'chase',   frames: 1200 },
+  { mode: 'scatter', frames: 300 },
+  { mode: 'chase',   frames: Infinity },
+];
+
+// Modo global según frame
+function ghostMode( frame ) {
+  let t = frame;
+  for ( const p of PHASES ) {
+    if ( t < p.frames ) return p.mode;
+    t -= p.frames;
+  }
+  return 'chase';
+}
+
 // Crea una partida nueva. Copia MAZE (pristino) a game.grid para poder comer
 // dots sin destruir el original, y reiniciar.
 function createGame() {
@@ -42,7 +71,11 @@ function createGame() {
       dir: 'up',
       speed: GHOST_SPEED,
       kind: g.kind,
+      state: 'waiting',          // 'waiting' | 'active'
+      waitUntil: 0,              // frame absoluto de liberacion
+      inPen: true,               // forzado a salir recto hacia arriba
     } ) ),
+    frame: 0,
   };
 }
 
@@ -114,31 +147,77 @@ function decideGhost( game, g ) {
   const grid = game.grid;
   const p = game.pacman;
 
+  // Obtener blanco según personalidad y modo
+  let target = null;
+  if ( ghostMode( game.frame ) === 'scatter' ) {
+    // En scatter, usar las esquinas específicas
+    target = SCATTER_TARGETS[ g.kind ];
+  } else {
+    // En chase, usar blanco específico según tipo de fantasma
+    switch ( g.kind ) {
+      case 'blinky': // Blinky persigue directamente a Pac-Man
+        target = { x: Math.round( p.x ), y: Math.round( p.y ) };
+        break;
+      case 'pinky': // Pinky anticipa 4 celdas delante de Pac-Man
+        const dir = DIRS[ p.dir ];
+        if ( dir ) {
+          target = { x: Math.round( p.x + 4 * dir.x ), y: Math.round( p.y + 4 * dir.y ) };
+        } else {
+          target = { x: Math.round( p.x ), y: Math.round( p.y ) };
+        }
+        break;
+      case 'inky': // Inky usa a Blinky como referencia
+        if ( game.ghosts[0] ) { // Blinky es el primer fantasma
+          const blinky = game.ghosts[0];
+          const dir = DIRS[ p.dir ];
+          if ( dir ) {
+            const ahead = { x: Math.round( p.x + 2 * dir.x ), y: Math.round( p.y + 2 * dir.y ) };
+            target = { 
+              x: 2 * ahead.x - Math.round( blinky.x ),
+              y: 2 * ahead.y - Math.round( blinky.y )
+            };
+          } else {
+            target = { x: Math.round( p.x ), y: Math.round( p.y ) };
+          }
+        } else {
+          target = { x: Math.round( p.x ), y: Math.round( p.y ) };
+        }
+        break;
+      case 'clyde': // Clyde se retira si está a menos de 8 celdas
+        const dx = Math.round( p.x ) - g.x;
+        const dy = Math.round( p.y ) - g.y;
+        const dist = Math.sqrt( dx * dx + dy * dy );
+        if ( dist <= 8 ) {
+          target = SCATTER_TARGETS.clyde;
+        } else {
+          target = { x: Math.round( p.x ), y: Math.round( p.y ) };
+        }
+        break;
+    }
+  }
+
   const options = Object.keys( DIRS ).filter(
     ( dir ) => dir !== OPPOSITE[ g.dir ] && canMove( grid, g.x, g.y, dir, 'ghost' )
   );
   // Sin salida (callejon): permitir el giro de 180.
   const choices = options.length ? options : [ '' + OPPOSITE[ g.dir ] ];
 
-  if ( g.kind === 'hunter' ) {
-    const px = Math.round( p.x );
-    const py = Math.round( p.y );
-    let best = choices[ 0 ];
-    let bestDist = Infinity;
-    for ( const dir of choices ) {
-      const d = DIRS[ dir ];
-      const nx = g.x + d.x;
-      const ny = g.y + d.y;
-      const dist = Math.abs( nx - px ) + Math.abs( ny - py );
-      if ( dist < bestDist ) {
-        bestDist = dist;
-        best = dir;
-      }
+  // Elegir la mejor dirección greedy (la que minimiza distancia Manhattan al blanco)
+  let best = choices[ 0 ];
+  let bestDist = Infinity;
+  for ( const dir of choices ) {
+    const d = DIRS[ dir ];
+    const nx = g.x + d.x;
+    const ny = g.y + d.y;
+    const dx = nx - target.x;
+    const dy = ny - target.y;
+    const dist = Math.abs( dx ) + Math.abs( dy );
+    if ( dist < bestDist ) {
+      bestDist = dist;
+      best = dir;
     }
-    g.dir = best;
-  } else {
-    g.dir = choices[ Math.floor( Math.random() * choices.length ) ];
   }
+  g.dir = best;
 }
 
 function moveGhost( game, g ) {
@@ -148,7 +227,18 @@ function moveGhost( game, g ) {
   if ( aligned( g.x ) && aligned( g.y ) ) {
     g.x = Math.round( g.x );
     g.y = Math.round( g.y );
-    decideGhost( game, g );
+    
+    // Si está en la pen, forzar dirección hacia arriba
+    if ( g.inPen ) {
+      g.dir = 'up';
+      // Cuando cruza la puerta (y <= 11), salir de la pen
+      if ( g.y <= 11 ) {
+        g.inPen = false;
+      }
+    } else {
+      decideGhost( game, g );
+    }
+    
     if ( !canMove( grid, g.x, g.y, g.dir, 'ghost' ) ) return;
   }
 
@@ -164,10 +254,15 @@ function resetPositions( game ) {
   p.y = PACMAN_START.y;
   p.dir = 'left';
   p.nextDir = null;
+  
   game.ghosts.forEach( ( g, i ) => {
-    g.x = GHOST_STARTS[ i ].x;
-    g.y = GHOST_STARTS[ i ].y;
+    const start = GHOST_STARTS[ i ];
+    g.x = start.x;
+    g.y = start.y;
     g.dir = 'up';
+    g.state = 'waiting';
+    g.inPen = true;
+    g.waitUntil = game.frame + RELEASE_DELAYS[ g.kind ];
   } );
 }
 
@@ -176,8 +271,19 @@ function collides( a, b ) {
 }
 
 function update( game ) {
+  game.frame++;
   movePacman( game );
-  game.ghosts.forEach( ( g ) => moveGhost( game, g ) );
+  game.ghosts.forEach( ( g ) => {
+    // Solo mueve si no está esperando
+    if ( g.state !== 'waiting' ) {
+      moveGhost( game, g );
+    } else {
+      // Si está en estado waiting, verificar si es hora de liberar
+      if ( game.frame >= g.waitUntil ) {
+        g.state = 'active';
+      }
+    }
+  } );
 
   for ( const g of game.ghosts ) {
     if ( collides( game.pacman, g ) ) {
