@@ -151,6 +151,9 @@ const GHOST_COLORS = {
   clyde: '#ffb852'
 };
 
+// Color de fantasmas durante el modo asustado
+const FRIGHTENED_COLOR = '#0000ff';
+
 function draw( ctx, game, frame ) {
   const grid = game.grid;
   const W = grid[ 0 ].length;
@@ -163,7 +166,14 @@ function draw( ctx, game, frame ) {
   drawDoor( ctx, grid );
   drawDots( ctx, grid );
   drawPacman( ctx, game.pacman, frame );
-  game.ghosts.forEach( ( g ) => drawGhost( ctx, g, GHOST_COLORS[ g.kind ] || '#ff0000' ) );
+  game.ghosts.forEach( ( g ) => {
+    // Determinar el color del fantasma según su estado
+    let color = GHOST_COLORS[ g.kind ] || '#ff0000';
+    if ( game.frightened || g.frightened ) {
+      color = FRIGHTENED_COLOR;
+    }
+    drawGhost( ctx, g, color );
+  } );
   drawHUD( ctx, game, W );
 }
 

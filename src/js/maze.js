@@ -58,6 +58,14 @@ const GHOST_STARTS = [
   { x: 14, y: 15, kind: 'clyde' },
 ];
 
+// Posiciones de las power pellets en las esquinas del laberinto
+const POWER_PELLET_POSITIONS = [
+  { x: 1, y: 1 },    // Esquina superior izquierda
+  { x: 26, y: 1 },   // Esquina superior derecha
+  { x: 1, y: 29 },   // Esquina inferior izquierda
+  { x: 26, y: 29 }   // Esquina inferior derecha
+];
+
 window.MAZE = MAZE;
 window.TUNNEL_ROW = TUNNEL_ROW;
 window.PACMAN_START = PACMAN_START;
